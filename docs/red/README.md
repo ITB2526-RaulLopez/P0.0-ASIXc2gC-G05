@@ -12,7 +12,7 @@ Crear la red base en AWS para alojar la instancia con Docker.
 4. Creada la tabla de rutas `RT-publica-G05` con la ruta `0.0.0.0/0` hacia el IGW y asociada a la subred.
 
 ### Capturas
-![VPC creada](vpc-creada.png)
+![VPC creada](vpc.png)
 ![Resource map](resourcemap.png)
 
 ### Comprobación
