@@ -17,6 +17,3 @@ Crear la red base en AWS para alojar la instancia con Docker.
 
 ### Comprobación
 El Resource map muestra la subred conectada a la tabla de rutas y al Internet Gateway.
-
-### Problemas encontrados
-(Apunta aquí lo que te falle, aunque sea poco.)
