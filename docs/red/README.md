@@ -13,7 +13,7 @@ Crear la red base en AWS para alojar la instancia con Docker.
 
 ### Capturas
 ![VPC creada](vpc-creada.png)
-![Resource map](resource-map.png)
+![Resource map](resourcemap.png)
 
 ### Comprobación
 El Resource map muestra la subred conectada a la tabla de rutas y al Internet Gateway.
