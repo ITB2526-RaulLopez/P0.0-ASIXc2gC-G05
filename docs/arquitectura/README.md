@@ -1,53 +1,68 @@
 # Arquitectura
 
 ## 1. Objetivo
-Desplegar la infraestructura para una aplicación multicapa (servidor web, base de datos, SSH, DHCP, DNS y FTP), con un router que conecta tres redes: DMZ, Intranet y NAT.
+Desplegar la infraestructura para una aplicación multicapa (servidor web, base de datos, SSH, DHCP, DNS y FTP), con un router que conecta tres redes: DMZ, Intranet y NAT. Se incluyen dos equipos cliente, uno Windows y otro Linux.
 
 ## 2. Diagrama
 
 ![Diagrama de arquitectura](arquitectura.png)
 
 ## 3. Visión general
-La infraestructura se despliega en AWS, dentro de una VPC. Una única instancia EC2 con Ubuntu 24.04 ejecuta Docker, y los equipos del proyecto son contenedores conectados mediante tres redes Docker. El router R-05 es un contenedor con reenvío IP activado que comunica las tres redes. Se accede a la instancia por SSH desde el PC de clase.
+La infraestructura se despliega en Isard con **tres máquinas virtuales**:
 
-## 4. Capa AWS
+- Una VM de servidor, `docker-05`, que ejecuta Docker y aloja todos los servicios como **contenedores**.
+- Dos VMs cliente, una Ubuntu y una Windows.
 
-| Elemento | Valor |
-|---|---|
-| VPC | VPC-G05, 10.0.0.0/16 |
-| Subred | 10.0.1.0/24 (pública) |
-| Security Group | SG-G05 |
-| Instancia | EC2 Ubuntu 24.04 con Docker |
+Dentro de `docker-05`, el contenedor **R-05** actúa como router y conecta las redes NAT, dmz e intranet. Los servicios se reparten por redes según su función: el servidor web en la DMZ y el resto de servicios en la Intranet. Se accede al entorno desde el PC de clase mediante el visor de Isard.
 
-## 5. Redes
+## 4. Máquinas virtuales (Isard)
 
-| Red | Subred | Función |
-|---|---|---|
-| DMZ | 172.20.1.0/24 | Servicios expuestos (servidor web) |
-| Intranet | 172.20.2.0/24 | Servicios internos y clientes |
-| NAT | 172.20.3.0/24 | Salida a Internet |
+| VM | Sistema | Función | Redes |
+|---|---|---|---|
+| docker-05 | Ubuntu Server | Aloja Docker y todos los contenedores | NIC1: red Isard por defecto (NAT) · NIC2: red privada Intranet |
+| Cliente Ubuntu | Ubuntu Desktop | Equipo cliente | Red privada Intranet |
+| Cliente Windows | Windows | Equipo cliente | Red privada Intranet |
 
-## 6. Equipos
+## 5. Contenedores (dentro de docker-05)
 
-| Hostname | Función | Red |
-|---|---|---|
-| R-05 | Router con reenvío IP | DMZ, Intranet y NAT |
-| W-05 | Servidor web y SSH | DMZ |
-| B-05 | Base de datos MySQL | Intranet |
-| F-05 | Servidor FTP | Intranet |
-| DHCP / DNS | Asignación de direcciones y resolución de nombres (R-05 y R) | Intranet |
-| Cliente Linux | Equipo de pruebas | Intranet |
-| Cliente Windows | Equipo de pruebas | Intranet |
+| Contenedor | Función | Red | IP |
+|---|---|---|---|
+| R-05 | Router con reenvío IP y NAT | NAT, dmz e intranet | 172.20.1.2 (dmz) · 192.168.20.2 (intranet) |
+| W-05 | Servidor web y SSH | dmz | 172.20.1.10 |
+| B-05 | Base de datos MySQL | intranet | 192.168.20.10 |
+| F-05 | Servidor FTP | intranet | 192.168.20.11 |
+| DHCP + DNS | Asignación de direcciones y resolución de nombres (`R-05` y `R`) | intranet | 192.168.20.12 |
 
-## 7. Usuario común
-Todos los sistemas tienen el usuario `bchecker`, como exige el enunciado.
+## 6. Redes
 
-## 8. Decisiones de diseño
-- **Una instancia con Docker en lugar de una instancia por servicio:** reduce el coste, acelera el despliegue y permite reproducir todo con ficheros de configuración guardados en el repositorio.
-- **Router como contenedor:** permite simular el enrutamiento entre las tres redes dentro de la misma instancia.
-- **Cliente Windows:** Docker en Linux no ejecuta contenedores Windows, por lo que este cliente se despliega como instancia EC2 Windows o máquina virtual aparte.
+| Red | Tipo | Subred | Función |
+|---|---|---|---|
+| NAT | Red por defecto de Isard (NIC1 de docker-05) | Asignada por Isard | Salida a Internet |
+| dmz | Red Docker (bridge) | 172.20.1.0/24 | Servicios expuestos (servidor web) |
+| intranet | Red Docker (macvlan sobre NIC2) | 192.168.20.0/24 | Servicios internos y clientes |
 
-## 9. Enlaces
+La red `intranet` usa macvlan sobre la segunda tarjeta de red de `docker-05`, conectada a una red privada de Isard. Así los contenedores de la intranet y las VMs cliente comparten la misma red.
+
+Rango DHCP para los clientes: 192.168.20.100 - 192.168.20.200.
+
+## 7. Flujo de comunicación
+- Los **clientes** obtienen IP por DHCP y resuelven nombres con el DNS de la intranet.
+- Para llegar al **servidor web** (DMZ), los clientes pasan por R-05.
+- **W-05** consulta la base de datos de **B-05** a través de R-05.
+- Todos los equipos salen a **Internet** por R-05, que hace NAT hacia la red de Isard.
+- El **PC de clase** accede a las VMs mediante el visor de Isard.
+
+## 8. Usuario común
+Todos los sistemas (VMs y contenedores) tienen el usuario `bchecker`, como exige el enunciado.
+
+## 9. Decisiones de diseño
+- **Una VM con todos los contenedores:** reduce el consumo de recursos de Isard y permite reproducir el despliegue con ficheros de configuración guardados en el repositorio.
+- **Router como contenedor:** simula el enrutamiento entre las tres redes dentro de la misma VM.
+- **Clientes como VMs:** Docker en Linux no ejecuta contenedores Windows, y además los clientes deben ser equipos independientes.
+- **DHCP y DNS en un mismo contenedor:** `dnsmasq` ofrece ambos servicios con poca carga.
+- **Red intranet con macvlan:** permite que los clientes, que son VMs aparte, vean los contenedores de la intranet directamente.
+
+## 10. Enlaces
 - [Red](../red/README.md)
 - [Servicios](../servicios/README.md)
 - [Clientes](../clientes/README.md)
